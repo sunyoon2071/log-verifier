@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>팰월드 로그 검수기</title>
+<style>
+:root{ color-scheme: light; }
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:#f5f6f8;color:#1d2129;font-size:14px;}
+.wrap{max-width:1500px;margin:0 auto;padding:18px 20px 60px;}
+h1{font-size:20px;margin:0 0 2px;}
+.sub{color:#6b7280;font-size:13px;margin:0 0 16px;}
+.bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:12px 14px;margin-bottom:14px;}
+.bar label{font-size:13px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
+.syncbar input{padding:6px 8px;border:1px solid #cdd2d8;border-radius:7px;font-size:12.5px;font-family:inherit;}
+.sync-status{font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;}
+.sync-status::before{content:'';width:8px;height:8px;border-radius:50%;background:#9ca3af;display:inline-block;}
+.sync-status.ok{color:#15803d;} .sync-status.ok::before{background:#16a34a;}
+.sync-status.err{color:#b91c1c;} .sync-status.err::before{background:#dc2626;}
+.sync-status.local{color:#6b7280;}
+.sync-hint{font-size:11.5px;color:#9ca3af;width:100%;margin-top:2px;}
+.layout{display:grid;grid-template-columns:270px 1fr;gap:14px;align-items:start;}
+.logs{background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:12px;position:sticky;top:14px;}
+.logs-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.logs-head h3{margin:0;font-size:14px;}
+.addform{display:none;background:#f8f9fb;border:1px solid #e3e6ea;border-radius:8px;padding:10px;margin-bottom:10px;}
+.addform.open{display:block;}
+.addform input,.addform select{width:100%;padding:7px 8px;border:1px solid #cdd2d8;border-radius:6px;font-size:13px;margin-bottom:7px;}
+.addform .row{display:flex;gap:6px;}
+.addform .row button{flex:1;}
+.cat-group{margin-bottom:12px;}
+.cat-title{font-size:12px;font-weight:700;color:#6b7280;margin:0 0 5px;display:flex;align-items:center;gap:6px;}
+.cat-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.dot-new{background:#2563eb;} .dot-mod{background:#d97706;} .dot-resp{background:#9333ea;}
+.log-item{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:7px;cursor:pointer;font-size:13px;border:1px solid transparent;}
+.log-item:hover{background:#f1f3f6;}
+.log-item.active{background:#e8f0fe;border-color:#bcd2fb;}
+.log-item{align-items:flex-start;}
+.log-item .nm{flex:1;white-space:normal;word-break:break-all;line-height:1.35;}
+.log-item .cnt{font-size:11px;color:#9ca3af;}
+.log-item .assignee{font-size:10.5px;color:#6b7280;background:#eef0f3;padding:1px 6px;border-radius:4px;white-space:nowrap;}
+.log-item .x{color:#cbd0d6;font-size:14px;line-height:1;padding:0 3px;}
+.log-item .x:hover{color:#dc2626;}
+.cat-empty{font-size:12px;color:#b6bbc2;padding:2px 8px 4px;}
+.logs-empty{font-size:13px;color:#9ca3af;text-align:center;padding:24px 8px;line-height:1.6;}
+.work{min-width:0;}
+.selbar{background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.selbar .curname{font-size:15px;font-weight:700;}
+.catbadge{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;}
+.cb-new{background:#dbeafe;color:#1d4ed8;} .cb-mod{background:#fef3c7;color:#b45309;} .cb-resp{background:#f3e8ff;color:#7e22ce;}
+.selbar select{padding:5px 8px;border:1px solid #cdd2d8;border-radius:6px;font-size:12.5px;}
+.work-placeholder{background:#fff;border:1px dashed #cdd2d8;border-radius:10px;padding:50px 20px;text-align:center;color:#9ca3af;line-height:1.7;}
+.grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:14px;margin-bottom:14px;}
+.pane{background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;}
+.pane h3{margin:0 0 4px;font-size:14px;}
+.pane .hint{font-size:12px;color:#8a909a;margin:0 0 8px;line-height:1.4;}
+textarea{width:100%;min-height:420px;resize:vertical;border:1px solid #cdd2d8;border-radius:8px;padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5;}
+.meta{font-size:12px;color:#6b7280;min-height:16px;}
+.actual .meta{margin-top:6px;}
+.spectable-wrap{max-height:60vh;overflow:auto;border:1px solid #cdd2d8;border-radius:8px;}
+.spectable{width:100%;border-collapse:collapse;background:#fff;table-layout:fixed;}
+.spectable th{position:sticky;top:0;background:#f8f9fb;font-size:12px;padding:7px 8px;border-bottom:1px solid #e3e6ea;border-right:1px solid #eef0f2;text-align:left;z-index:1;}
+.spectable th.rn,.spectable th.del{width:28px;text-align:center;padding:7px 2px;}
+.spectable col.c-field{width:27%;} .spectable col.c-type{width:14%;} .spectable col.c-desc{width:39%;} .spectable col.c-remark{width:20%;}
+.spectable td{border-bottom:1px solid #eef0f2;border-right:1px solid #eef0f2;padding:0;vertical-align:top;}
+.spectable td.rn{text-align:center;color:#9ca3af;font-size:11px;padding-top:7px;}
+.spectable textarea{width:100%;min-height:30px;border:none;padding:6px 8px;font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace;background:transparent;resize:none;overflow:hidden;line-height:1.4;white-space:pre-wrap;word-break:break-word;display:block;}
+.spectable textarea.c-desc-i,.spectable textarea.c-remark-i{font-family:inherit;}
+.spectable textarea:focus{outline:2px solid #93c5fd;outline-offset:-2px;background:#fff;border-radius:3px;}
+.spectable td.del{text-align:center;}
+.delbtn{border:none;background:transparent;color:#cbd0d6;cursor:pointer;font-size:15px;line-height:1;padding:2px 5px;}
+.delbtn:hover{color:#dc2626;}
+.spec-actions{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;}
+.btn-mini{font-size:12px;padding:5px 10px;background:#eef0f3;color:#374151;border:none;border-radius:6px;font-weight:500;cursor:pointer;}
+.btn-mini:hover{background:#e2e5ea;}
+.actions{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+button{font-size:13.5px;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:600;}
+.btn-primary{background:#2563eb;color:#fff;}
+.btn-primary:hover{background:#1d4ed8;}
+.btn-ghost{background:#eef0f3;color:#374151;}
+.btn-ghost:hover{background:#e2e5ea;}
+.cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+.card{flex:1;min-width:90px;background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:10px 12px;text-align:center;}
+.card .n{font-size:22px;font-weight:700;line-height:1.1;}
+.card .l{font-size:12px;color:#6b7280;margin-top:2px;}
+.card.ok .n{color:#16a34a;} .card.miss .n{color:#dc2626;} .card.extra .n{color:#d97706;}
+.card.type .n{color:#9333ea;} .card.null_ .n{color:#0891b2;}
+.verdict{font-weight:700;font-size:15px;padding:10px 14px;border-radius:10px;margin-bottom:14px;display:none;}
+.verdict.pass{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;}
+.verdict.fail{background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;}
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;}
+.filters button{padding:5px 12px;font-size:12.5px;background:#eef0f3;color:#374151;font-weight:500;}
+.filters button.active{background:#2563eb;color:#fff;}
+table.res{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e3e6ea;}
+.res th,.res td{text-align:left;padding:8px 11px;font-size:13px;border-bottom:1px solid #eef0f2;vertical-align:top;}
+.res th{background:#f8f9fb;font-weight:600;color:#4b5563;position:sticky;top:0;cursor:pointer;user-select:none;}
+.res td.field{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;}
+.res td.val{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;max-width:320px;word-break:break-all;}
+tr.r-miss{background:#fef2f2;} tr.r-extra{background:#fffbeb;} tr.r-type{background:#faf5ff;} tr.r-null{background:#ecfeff;}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap;}
+.b-ok{background:#dcfce7;color:#15803d;} .b-miss{background:#fee2e2;color:#b91c1c;}
+.b-extra{background:#fef3c7;color:#b45309;} .b-type{background:#f3e8ff;color:#7e22ce;} .b-null{background:#cffafe;color:#0e7490;}
+.empty{text-align:center;color:#9ca3af;padding:30px;}
+.tablewrap{max-height:60vh;overflow:auto;border-radius:10px;}
+.rename-input{font-size:15px;font-weight:700;border:1px solid #93c5fd;border-radius:6px;padding:3px 8px;font-family:inherit;}
+.vpill{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;}
+.vp-pass{background:#dcfce7;color:#15803d;} .vp-fail{background:#fee2e2;color:#b91c1c;}
+.vp-na{background:#e2e8f0;color:#475569;} .vp-block{background:#ffedd5;color:#c2410c;}
+.pfgroup{display:inline-flex;border:1px solid #cdd2d8;border-radius:7px;overflow:hidden;}
+.pfgroup button{border:none;background:#fff;color:#6b7280;font-size:12px;font-weight:600;padding:5px 11px;border-right:1px solid #e3e6ea;border-radius:0;}
+.pfgroup button:last-child{border-right:none;}
+.pfgroup button.on[data-v="pass"]{background:#16a34a;color:#fff;}
+.pfgroup button.on[data-v="fail"]{background:#dc2626;color:#fff;}
+.pfgroup button.on[data-v="na"]{background:#64748b;color:#fff;}
+.pfgroup button.on[data-v="block"]{background:#d97706;color:#fff;}
+.pfgroup button.on[data-v=""]{background:#9ca3af;color:#fff;}
+select.pf{border:1px solid #cdd2d8;border-radius:6px;padding:4px 6px;font-size:12px;font-weight:600;background:#fff;}
+select.pf[data-v="pass"]{color:#15803d;border-color:#bbf7d0;} select.pf[data-v="fail"]{color:#b91c1c;border-color:#fecaca;}
+select.pf[data-v="na"]{color:#475569;border-color:#cbd5e1;} select.pf[data-v="block"]{color:#c2410c;border-color:#fed7aa;}
+input.cmt{width:100%;border:1px solid #e3e6ea;border-radius:6px;padding:5px 7px;font-size:12.5px;font-family:inherit;}
+input.cmt:focus{outline:2px solid #93c5fd;outline-offset:-1px;}
+.memo-details{margin-top:8px;border:1px solid #e3e6ea;border-radius:8px;overflow:hidden;}
+.memo-summary{padding:7px 10px;font-size:12.5px;font-weight:600;color:#6b7280;cursor:pointer;background:#f8f9fb;user-select:none;}
+.memo-summary:hover{background:#eef0f3;}
+.memo-details textarea{width:100%;min-height:150px;resize:vertical;border:none;border-top:1px solid #e3e6ea;border-radius:0;padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50;}
+.modal-bg.open{display:flex;}
+.modal{background:#fff;border-radius:12px;padding:18px;max-width:560px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.2);}
+.modal h4{margin:0 0 6px;font-size:15px;}
+.modal textarea{min-height:220px;}
+.mrow{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>팰월드 로그 검수기</h1>
+  <p class="sub">로그를 카테고리별로 등록하고, 명세(기대 필드)와 데이터브릭스 실제 로그를 비교 — 필드 누락/추가 · 타입 일치 · NULL 체크</p>
+
+  <div class="bar syncbar">
+    <strong style="font-size:13px;">공용 연동</strong>
+    <input id="syncUrl" type="text" placeholder="Apps Script 웹앱 URL 붙여넣기" style="flex:1;min-width:240px;">
+    <input id="syncUser" type="text" placeholder="내 이름" style="width:110px;">
+    <button class="btn-mini" id="connectBtn">연결</button>
+    <button class="btn-mini" id="refreshBtn">↻ 새로고침</button>
+    <span class="sync-status local" id="syncStatus">미연동 (로컬 저장)</span>
+    <span class="sync-hint">팀원과 같은 URL을 입력하면 등록한 로그·명세·판정이 공유됩니다.</span>
+  </div>
+
+  <div class="bar">
+    <label><input type="checkbox" id="optStruct" checked> struct 컨테이너 필드 제외</label>
+    <label><input type="checkbox" id="optType" checked> 타입 검사</label>
+    <label><input type="checkbox" id="optNull" checked> NULL 값 검사</label>
+    <label><input type="checkbox" id="optLoose"> 느슨한 매칭(중첩 말단명)</label>
+  </div>
+
+  <div class="layout">
+    <aside class="logs">
+      <div class="logs-head"><h3>로그 목록</h3><button class="btn-mini" id="toggleAdd">+ 로그 추가</button></div>
+      <div class="addform" id="addForm">
+        <input type="text" id="newName" placeholder="로그 이름 (예: LogMinigameEnter)">
+        <select id="newCat">
+          <option value="new">신규 로그</option>
+          <option value="mod">기존 로그 수정</option>
+          <option value="resp">기존 로그 대응</option>
+        </select>
+        <div class="row">
+          <button class="btn-primary" id="addConfirm" style="padding:7px;">추가</button>
+          <button class="btn-ghost" id="addCancel" style="padding:7px;">취소</button>
+        </div>
+      </div>
+      <div id="logList"></div>
+    </aside>
+
+    <section class="work">
+      <div class="work-placeholder" id="placeholder">왼쪽에서 <b>+ 로그 추가</b>로 검수할 로그를 등록하세요.<br>등록한 로그는 카테고리별로 목록에 남습니다.</div>
+
+      <div id="workInner" style="display:none;">
+        <div class="selbar">
+          <span class="curname" id="curName">—</span>
+          <span class="catbadge" id="curCatBadge"></span>
+          <label style="font-size:12.5px;color:#6b7280;">카테고리 변경:
+            <select id="curCatSel">
+              <option value="new">신규 로그</option>
+              <option value="mod">기존 로그 수정</option>
+              <option value="resp">기존 로그 대응</option>
+            </select>
+          </label>
+          <button class="btn-mini" id="renameLog">이름 변경</button>
+          <label style="font-size:12.5px;color:#6b7280;">담당자:
+            <input type="text" id="curAssignee" placeholder="이름 입력" style="width:100px;padding:4px 7px;border:1px solid #cdd2d8;border-radius:6px;font-size:12.5px;font-family:inherit;">
+          </label>
+          <span style="margin-left:auto;font-size:12.5px;color:#6b7280;">판정:</span>
+          <div class="pfgroup" id="verdictGroup">
+            <button data-v="pass">PASS</button>
+            <button data-v="fail">FAIL</button>
+            <button data-v="na">N/A</button>
+            <button data-v="block">BLOCK</button>
+            <button data-v="">미검수</button>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="pane">
+            <h3>① 명세 (기대 필드)</h3>
+            <p class="hint">셀에 직접 입력하거나 Confluence 표를 복붙하세요. 붙여넣으면 <b>Field Name / Data Type / Description / Remark</b> 셀로 자동 분리됩니다.</p>
+            <div class="spectable-wrap">
+              <table class="spectable" id="specTable">
+                <colgroup><col class="c-rn"><col class="c-field"><col class="c-type"><col class="c-desc"><col class="c-remark"><col class="c-del"></colgroup>
+                <thead><tr><th class="rn">#</th><th>Field Name</th><th>Data Type</th><th>Description</th><th>Remark</th><th class="del"></th></tr></thead>
+                <tbody id="specBody"></tbody>
+              </table>
+            </div>
+            <div class="spec-actions">
+              <button class="btn-mini" id="addRow">+ 행 추가</button>
+              <button class="btn-mini" id="undoBtn" title="실행취소 (Ctrl+Z)">↶ 실행취소</button>
+              <button class="btn-mini" id="redoBtn" title="다시실행 (Ctrl+Shift+Z)">↷ 다시실행</button>
+              <button class="btn-mini" id="clearSpec">명세 비우기</button>
+              <span class="meta" id="expMeta"></span>
+            </div>
+          </div>
+          <div class="pane actual">
+            <h3>② 데이터브릭스 로그 (실제)</h3>
+            <p class="hint">JSON · 표(탭 복사) · 필드명 목록 · <code>키:값</code> 목록 자동 인식. 값이 있으면 타입/NULL까지 검사합니다.</p>
+            <textarea id="actual" placeholder='예) JSON:&#10;{"player_nickname":"abc","player_level":10,"session_id":null}&#10;&#10;또는 필드명 목록:&#10;player_nickname&#10;player_level&#10;session_id'></textarea>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+              <button class="btn-mini" id="clearActual">지우기</button>
+              <button class="btn-mini" id="saveToMemo">메모에 저장 ↓</button>
+              <div class="meta" id="actMeta" style="margin:0;"></div>
+            </div>
+            <details class="memo-details" id="memoSection">
+              <summary class="memo-summary">메모장 (히스토리)</summary>
+              <textarea id="actualMemo" placeholder="이전 로그를 여기에 보관할 수 있습니다."></textarea>
+            </details>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn-primary" id="run">검수 실행</button>
+          <button class="btn-ghost" id="copy">결과 복사 (TSV)</button>
+        </div>
+
+        <div class="verdict" id="verdict"></div>
+        <div class="cards" id="cards" style="display:none;"></div>
+        <div class="filters" id="filters" style="display:none;"></div>
+        <div class="tablewrap"><table class="res" id="resultTable" style="display:none;"><thead id="resultHead"></thead><tbody id="rows"></tbody></table></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal-bg" id="copyModal"><div class="modal">
+  <h4>결과 복사</h4>
+  <p style="font-size:12.5px;color:#6b7280;margin:0 0 8px;">아래 내용이 선택되어 있습니다. <b>Ctrl+C</b>로 복사하세요.</p>
+  <textarea id="copyText" readonly></textarea>
+  <div class="mrow"><button class="btn-ghost" id="copyClose">닫기</button></div>
+</div></div>
+
+<script>
+const $ = s=>document.querySelector(s);
+const specBody=$('#specBody'), actTa=$('#actual');
+const COLS=['field','type','desc','remark'];
+const CATS=[['new','신규 로그','dot-new','cb-new'],['mod','기존 로그 수정','dot-mod','cb-mod'],['resp','기존 로그 대응','dot-resp','cb-resp']];
+const catName=c=>(CATS.find(x=>x[0]===c)||['','?'])[1];
+const catBadge=c=>(CATS.find(x=>x[0]===c)||['','','','cb-new'])[3];
+const VLABEL={pass:'PASS',fail:'FAIL',na:'N/A',block:'BLOCK'};
+function vpillHtml(v){return VLABEL[v]?'<span class="vpill vp-'+v+'">'+VLABEL[v]+'</span>':'';}
+
+let logs=[];
+let currentId=null;
+
+// ---------- undo / redo (spec grid) ----------
+let undoStack=[],redoStack=[],typingPre=null,typingTimer=null;
+function snapshot(){return JSON.stringify(specData());}
+function pushState(state){undoStack.push(state);if(undoStack.length>120)undoStack.shift();redoStack=[];}
+function snapBefore(){commitTyping();pushState(snapshot());}
+function resetUndo(){undoStack=[];redoStack=[];typingPre=null;if(typingTimer){clearTimeout(typingTimer);typingTimer=null;}}
+function commitTyping(){if(typingTimer){clearTimeout(typingTimer);typingTimer=null;}if(typingPre!==null){undoStack.push(typingPre);if(undoStack.length>120)undoStack.shift();redoStack=[];typingPre=null;}}
+function onBeforeInput(){if(typingPre===null&&typingTimer===null)typingPre=snapshot();if(typingTimer)clearTimeout(typingTimer);typingTimer=setTimeout(commitTyping,600);}
+function restoreState(state){specBody.innerHTML='';const data=JSON.parse(state);if(data.length)data.forEach(r=>specBody.appendChild(makeRow(r[0],r[1],r[2],r[3])));else for(let i=0;i<6;i++)specBody.appendChild(makeRow());ensureBlank();renumber();save();growAll();}
+function doUndo(){commitTyping();if(!undoStack.length)return;redoStack.push(snapshot());restoreState(undoStack.pop());}
+function doRedo(){commitTyping();if(!redoStack.length)return;undoStack.push(snapshot());restoreState(redoStack.pop());}
+
+function getCell(tr,c){return tr.querySelector('[data-c="'+c+'"]');}
+function autoGrow(ta){ta.style.height='auto';ta.style.height=(ta.scrollHeight+2)+'px';}
+function growAll(){specBody.querySelectorAll('textarea').forEach(autoGrow);}
+function makeRow(f,t,d,r){
+  const tr=document.createElement('tr');
+  tr.innerHTML='<td class="rn"></td>'+COLS.map(c=>'<td><textarea rows="1" data-c="'+c+'" class="c-'+c+'-i"></textarea></td>').join('')+'<td class="del"><button class="delbtn" title="행 삭제">×</button></td>';
+  const inp=tr.querySelectorAll('textarea');
+  inp[0].value=f||'';inp[1].value=t||'';inp[2].value=d||'';inp[3].value=r||'';
+  inp.forEach(x=>{x.addEventListener('beforeinput',onBeforeInput);x.addEventListener('input',()=>{autoGrow(x);save();ensureBlank();});x.addEventListener('paste',onPaste);});
+  tr.querySelector('.delbtn').onclick=()=>{snapBefore();tr.remove();renumber();ensureBlank();save();};
+  return tr;
+}
+function renumber(){[...specBody.children].forEach((tr,i)=>tr.querySelector('.rn').textContent=i+1);}
+function rowEmpty(tr){return [...tr.querySelectorAll('input')].every(i=>!i.value.trim());}
+function ensureBlank(){const rows=[...specBody.children];if(rows.length===0){specBody.appendChild(makeRow());renumber();return;}const last=rows[rows.length-1];if(!rowEmpty(last)){specBody.appendChild(makeRow());renumber();}}
+
+function cellText(td){return (td.textContent||'').replace(/ /g,' ').replace(/\s+/g,' ').trim();}
+function parseHtmlTable(html){
+  html=html.replace(/<br\s*\/?>/gi,' ').replace(/<\/(p|div|li)>/gi,' ');
+  let doc;try{doc=new DOMParser().parseFromString(html,'text/html');}catch(e){return null;}
+  const table=doc.querySelector('table');if(!table)return null;
+  const out=[];
+  table.querySelectorAll('tr').forEach(tr=>{const cells=[...tr.querySelectorAll('th,td')].map(cellText);if(cells.some(c=>c!==''))out.push(cells);});
+  if(out.length&&/field\s*name/i.test(out[0][0]||''))out.shift();
+  return out.length?out:null;
+}
+function parsePasteMatrix(txt){const out=[];for(let line of txt.replace(/\r/g,'').split('\n')){if(line.trim()==='')continue;const st=line.replace(/[-|:\s]/g,'');if(line.includes('-')&&st===''){continue;}let cells;if(line.includes('\t'))cells=line.split('\t');else if(line.includes('|')){cells=line.split('|');if(cells.length&&cells[0].trim()==='')cells.shift();if(cells.length&&cells[cells.length-1].trim()==='')cells.pop();}else cells=[line];cells=cells.map(c=>c.replace(/\*\*/g,'').trim());out.push(cells);}if(out.length&&/field\s*name/i.test(out[0][0]||''))out.shift();return out;}
+function onPaste(e){
+  const cd=e.clipboardData||window.clipboardData;
+  const html=cd?cd.getData('text/html'):'';
+  const txt=cd?cd.getData('text'):'';
+  let m=null;
+  if(html&&/<t[dr]\b/i.test(html))m=parseHtmlTable(html);
+  if(!m){if(!txt)return;if(!/[\t\n]/.test(txt)&&!txt.includes('|'))return;m=parsePasteMatrix(txt);}
+  if(!m||!m.length)return;
+  e.preventDefault();commitTyping();snapBefore();
+  const startInput=e.target,startTr=startInput.closest('tr');
+  const startCol=COLS.indexOf(startInput.dataset.c);
+  let startIdx=[...specBody.children].indexOf(startTr);
+  m.forEach((cells,r)=>{const trIdx=startIdx+r;while(specBody.children.length<=trIdx)specBody.appendChild(makeRow());const tr=specBody.children[trIdx];cells.forEach((val,c)=>{const ci=startCol+c;if(ci>=COLS.length)return;getCell(tr,COLS[ci]).value=val;});});
+  renumber();ensureBlank();save();growAll();
+}
+
+const LS='palm_log_verifier_v3';
+function specData(){return [...specBody.children].map(tr=>COLS.map(c=>getCell(tr,c).value)).filter(r=>r.some(x=>x.trim()));}
+function syncCurrent(){if(currentId==null)return;const lg=logs.find(l=>l.id===currentId);if(!lg)return;lg.spec=specData();lg.actual=actTa.value;lg.memo=$('#actualMemo').value||'';}
+function payload(){return JSON.stringify({logs,currentId,s:$('#optStruct').checked,t:$('#optType').checked,n:$('#optNull').checked,l:$('#optLoose').checked});}
+function save(){syncCurrent();try{localStorage.setItem(LS,payload());}catch(e){}scheduledPush();}
+function persistOnly(){try{localStorage.setItem(LS,payload());}catch(e){}scheduledPush();}
+function load(){let d={};try{d=JSON.parse(localStorage.getItem(LS)||'{}');}catch(e){}
+  if(d.s!=null)$('#optStruct').checked=d.s;if(d.t!=null)$('#optType').checked=d.t;if(d.n!=null)$('#optNull').checked=d.n;if(d.l!=null)$('#optLoose').checked=d.l;
+  logs=Array.isArray(d.logs)?d.logs:[];
+  if(!logs.length){try{const old=JSON.parse(localStorage.getItem('palm_log_verifier_v2')||'{}');if(old.spec&&old.spec.length){logs=[{id:String(Date.now()),name:'기존 명세',cat:'new',spec:old.spec,actual:old.a||''}];}}catch(e){}}
+  logs.forEach(l=>{l.id=String(l.id);});
+  const dCur=d.currentId!=null?String(d.currentId):null;
+  currentId=(dCur!=null&&logs.some(l=>l.id===dCur))?dCur:(logs[0]?logs[0].id:null);
+  renderLogList();
+  if(currentId!=null)loadIntoEditor();else showWork(false);
+}
+
+function renderLogList(){
+  const wrap=$('#logList');
+  if(!logs.length){wrap.innerHTML='<div class="logs-empty">등록된 로그가 없습니다.<br>+ 로그 추가로 시작하세요.</div>';return;}
+  let html='';
+  CATS.forEach(cat=>{
+    const items=logs.filter(l=>l.cat===cat[0]);
+    html+='<div class="cat-group"><div class="cat-title"><span class="cat-dot '+cat[2]+'"></span>'+cat[1]+' ('+items.length+')</div>';
+    if(!items.length)html+='<div class="cat-empty">— 없음</div>';
+    items.forEach(l=>{const cnt=(l.spec||[]).filter(r=>r[0]&&r[0].trim()).length;
+      const vp=vpillHtml(l.verdict);
+      const assigneeHtml=l.assignee?'<span class="assignee">'+esc(l.assignee)+'</span>':'';
+      html+='<div class="log-item'+(l.id===currentId?' active':'')+'" data-id="'+l.id+'"><span class="nm" title="'+esc(l.name)+'">'+esc(l.name||'(이름 없음)')+'</span>'+assigneeHtml+vp+'<span class="cnt">'+cnt+'</span><span class="x" data-del="'+l.id+'" title="삭제">×</span></div>';});
+    html+='</div>';
+  });
+  wrap.innerHTML=html;
+  wrap.querySelectorAll('.log-item').forEach(it=>{it.addEventListener('click',e=>{if(e.target.dataset.del)return;selectLog(it.dataset.id);});});
+  wrap.querySelectorAll('[data-del]').forEach(x=>x.addEventListener('click',e=>{e.stopPropagation();deleteLog(x.dataset.del);}));
+}
+function showWork(on){$('#workInner').style.display=on?'block':'none';$('#placeholder').style.display=on?'none':'block';}
+function loadIntoEditor(){
+  const lg=logs.find(l=>l.id===currentId);if(!lg){showWork(false);return;}
+  specBody.innerHTML='';
+  if(lg.spec&&lg.spec.length)lg.spec.forEach(r=>specBody.appendChild(makeRow(r[0],r[1],r[2],r[3])));
+  else for(let i=0;i<6;i++)specBody.appendChild(makeRow());
+  ensureBlank();renumber();resetUndo();
+  actTa.value=lg.actual||'';
+  $('#actualMemo').value=lg.memo||'';
+  $('#curName').textContent=lg.name||'(이름 없음)';
+  const b=$('#curCatBadge');b.textContent=catName(lg.cat);b.className='catbadge '+catBadge(lg.cat);
+  $('#curCatSel').value=lg.cat;
+  $('#curAssignee').value=lg.assignee||'';
+  setVerdictUI(lg.verdict||'');
+  $('#expMeta').textContent='';$('#actMeta').textContent='';
+  lastResults=[];$('#cards').style.display='none';$('#filters').style.display='none';$('#resultTable').style.display='none';$('#verdict').style.display='none';
+  showWork(true);growAll();
+}
+function selectLog(id){if(id===currentId)return;syncCurrent();currentId=id;loadIntoEditor();renderLogList();persistOnly();}
+function addLog(name,cat){syncCurrent();const lg={id:String(Date.now())+Math.floor(Math.random()*1000),name:name,cat:cat,spec:[],actual:'',verdict:'',rowMeta:{}};logs.push(lg);currentId=lg.id;renderLogList();loadIntoEditor();persistOnly();pushLog(lg);}
+function deleteLog(id){const lg=logs.find(l=>l.id===id);if(!lg)return;if(!confirm('"'+(lg.name||'이 로그')+'"를 목록에서 삭제할까요?'))return;logs=logs.filter(l=>l.id!==id);if(currentId===id){currentId=logs[0]?logs[0].id:null;if(currentId!=null)loadIntoEditor();else showWork(false);}renderLogList();persistOnly();pushDelete(id);}
+
+$('#toggleAdd').onclick=()=>{const f=$('#addForm');f.classList.toggle('open');if(f.classList.contains('open'))$('#newName').focus();};
+$('#addCancel').onclick=()=>{$('#addForm').classList.remove('open');$('#newName').value='';};
+$('#addConfirm').onclick=()=>{const nm=$('#newName').value.trim();if(!nm){alert('로그 이름을 입력하세요.');return;}addLog(nm,$('#newCat').value);$('#newName').value='';$('#addForm').classList.remove('open');};
+$('#newName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#addConfirm').click();});
+$('#renameLog').onclick=()=>{const lg=logs.find(l=>l.id===currentId);if(!lg)return;startRename(lg);};
+function startRename(lg){const span=$('#curName');if(!span||span.tagName!=='SPAN')return;const inp=document.createElement('input');inp.type='text';inp.value=lg.name||'';inp.className='rename-input';span.replaceWith(inp);inp.focus();inp.select();let done=false;
+  const commit=(keep)=>{if(done)return;done=true;lg.name=keep?(inp.value.trim()||lg.name):lg.name;const ns=document.createElement('span');ns.className='curname';ns.id='curName';ns.textContent=lg.name||'(이름 없음)';inp.replaceWith(ns);renderLogList();persistOnly();};
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit(true);}else if(e.key==='Escape'){e.preventDefault();commit(false);}});
+  inp.addEventListener('blur',()=>commit(true));}
+$('#curCatSel').onchange=()=>{const lg=logs.find(l=>l.id===currentId);if(!lg)return;lg.cat=$('#curCatSel').value;const b=$('#curCatBadge');b.textContent=catName(lg.cat);b.className='catbadge '+catBadge(lg.cat);renderLogList();persistOnly();};
+$('#curAssignee').oninput=()=>{const lg=logs.find(l=>l.id===currentId);if(!lg)return;lg.assignee=$('#curAssignee').value.trim();renderLogList();persistOnly();};
+function setVerdictUI(v){document.querySelectorAll('#verdictGroup button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));}
+document.querySelectorAll('#verdictGroup button').forEach(b=>b.onclick=()=>{const lg=logs.find(l=>l.id===currentId);if(!lg)return;lg.verdict=b.dataset.v;setVerdictUI(lg.verdict);renderLogList();persistOnly();});
+function setRowMeta(field,key,val){const lg=logs.find(l=>l.id===currentId);if(!lg)return;lg.rowMeta=lg.rowMeta||{};lg.rowMeta[field]=lg.rowMeta[field]||{};lg.rowMeta[field][key]=val;persistOnly();}
+$('#addRow').onclick=()=>{specBody.appendChild(makeRow());renumber();getCell(specBody.lastChild,'field').focus();};
+$('#clearSpec').onclick=()=>{if(specData().length&&!confirm('이 로그의 명세를 모두 비울까요?'))return;snapBefore();specBody.innerHTML='';ensureBlank();renumber();save();$('#expMeta').textContent='';};
+$('#undoBtn').onclick=doUndo;$('#redoBtn').onclick=doRedo;
+function nativeUndoContext(){const ae=document.activeElement;if(!ae)return false;if(ae.dataset&&ae.dataset.c)return false;if(ae.tagName==='TEXTAREA'||ae.tagName==='INPUT')return true;return false;}
+document.addEventListener('keydown',e=>{const mod=e.ctrlKey||e.metaKey;if(!mod)return;const k=e.key.toLowerCase();if(k!=='z'&&k!=='y')return;if(nativeUndoContext())return;
+  if(k==='z'&&!e.shiftKey){e.preventDefault();doUndo();}
+  else if((k==='z'&&e.shiftKey)||k==='y'){e.preventDefault();doRedo();}});
+
+function cleanField(s){return (s||'').replace(/\*/g,'').replace(/\s*\(.*$/,'').replace(/[`"',]/g,'').trim();}
+function isNullish(v){return v===null||v===undefined||v===''||(typeof v==='string'&&/^null$/i.test(v.trim()));}
+function inferType(v){if(v===null)return 'null';if(Array.isArray(v))return 'array';const t=typeof v;if(t==='number')return Number.isInteger(v)?'int':'double/float';if(t==='boolean')return 'boolean';if(t==='object')return 'struct';return 'string';}
+function inferStrType(v){if(v==null||v==='')return '';const s=String(v).trim();if(/^null$/i.test(s))return 'null';if(/^-?\d+$/.test(s))return 'int';if(/^-?\d*\.\d+$/.test(s))return 'double/float';if(/^(true|false)$/i.test(s))return 'boolean';if(/^[\[{]/.test(s))return 'struct';return 'string';}
+function normType(t){t=(t||'').toLowerCase();if(/struct|object|map|record/.test(t))return 'struct';if(/bool/.test(t))return 'boolean';if(/array|list|\[\]/.test(t))return 'array';if(/double|float|decimal/.test(t))return 'float';if(/int|long|number|bigint/.test(t))return 'int';if(/string|str|varchar|text|char/.test(t))return 'string';if(/null/.test(t))return 'null';return t.trim();}
+function typeCompatible(spec,actual){const s=normType(spec),a=normType(actual);if(!s||!a||a==='null')return null;if(s===a)return true;if(s==='float'&&(a==='int'||a==='float'))return true;if(s==='int'&&a==='float')return false;if(s==='struct'&&a==='array')return true;return false;}
+function flatten(obj,prefix,out){for(const k in obj){const v=obj[k];const key=prefix?prefix+'_'+k:k;if(v&&typeof v==='object'&&!Array.isArray(v)){out[key]=v;flatten(v,key,out);}else out[key]=v;}}
+function leaf(name){const p=name.split(/[_.]/);return p[p.length-1];}
+
+function parseExpected(){const rows=[];const seen=new Set();[...specBody.children].forEach(tr=>{const f=cleanField(getCell(tr,'field').value);const t=getCell(tr,'type').value.replace(/\*/g,'').trim();if(!f||/^field\s*name$/i.test(f)||f==='항목'||f==='구분')return;if(seen.has(f))return;seen.add(f);rows.push({field:f,type:t});});return rows;}
+function parseActual(text){const t=text.trim();if(!t)return{records:[],hasValues:false,format:'(비어있음)',recordCount:0};
+if(t[0]==='{'||t[0]==='['){try{let parsed=JSON.parse(t);let arr=Array.isArray(parsed)?parsed:[parsed];if(!arr.length)return{records:[],hasValues:false,format:'JSON (빈 배열)',recordCount:0};
+const records=arr.map(obj=>{const flat={};flatten(obj,'',flat);return Object.entries(flat).map(([k,v])=>({field:k,value:v,type:inferType(v),isNull:isNullish(v)}));});
+return{records,hasValues:true,format:'JSON',recordCount:arr.length};}catch(e){}}
+const lines=t.split(/\r?\n/).filter(l=>l.trim()!=='');
+if(lines.length>=2&&lines[0].includes('\t')){const h=lines[0].split('\t').map(s=>s.trim());const records=[];
+for(let i=1;i<lines.length;i++){const v=lines[i].split('\t').map(s=>s.trim());const fields=h.map((hh,j)=>{const vv=v[j]!==undefined?v[j]:'';return{field:cleanField(hh),value:vv,type:inferStrType(vv),isNull:isNullish(vv)};}).filter(f=>f.field);records.push(fields);}
+return{records,hasValues:true,format:'표(탭)',recordCount:records.length};}
+if(lines.length>=2&&lines[0].includes('|')){const sp=s=>{let c=s.split('|').map(x=>x.trim());if(c[0]==='')c.shift();if(c[c.length-1]==='')c.pop();return c;};const dl=lines.filter(l=>{const st=l.replace(/[-|:\s]/g,'');return !(l.includes('-')&&st==='');});const h=sp(dl[0]);const records=[];
+for(let i=1;i<dl.length;i++){const v=sp(dl[i]);const fields=h.map((hh,j)=>{const vv=v[j]!==undefined?v[j]:'';return{field:cleanField(hh),value:vv,type:inferStrType(vv),isNull:isNullish(vv)};}).filter(f=>f.field);records.push(fields);}
+return{records,hasValues:records.length>0,format:'표(파이프)',recordCount:records.length};}
+let anyVal=false;let items=(t.includes(',')&&lines.length<=2)?t.split(','):lines;const fields=items.map(s=>{let line=s.trim().replace(/,$/,'');if(!line)return null;const m=line.match(/^["'`]?([\w.\[\]]+)["'`]?\s*[:=]\s*(.*)$/);if(m){anyVal=true;let v=m[2].trim().replace(/^["']|["']$/g,'').replace(/,$/,'');return{field:cleanField(m[1]),value:v,type:inferStrType(v),isNull:isNullish(v)};}return{field:cleanField(line),value:undefined,type:'',isNull:false};}).filter(f=>f&&f.field);return{records:[fields],hasValues:anyVal,format:anyVal?'키:값 목록':'필드명 목록',recordCount:1};}
+
+let lastResults=[];let lastRecordCount=1;let curFilter='all';let sortKey=null,sortDir=1;
+function compare(){if(currentId==null){alert('먼저 로그를 선택하세요.');return;}
+  const exp=parseExpected();const act=parseActual(actTa.value);
+  const excl=$('#optStruct').checked,ckType=$('#optType').checked,ckNull=$('#optNull').checked,loose=$('#optLoose').checked;
+  const rc=act.recordCount;lastRecordCount=rc;
+  const fieldCount=rc>0?act.records[0].length:0;
+  $('#expMeta').textContent='명세 '+exp.length+'개 필드 인식';
+  $('#actMeta').textContent='실제 형식: '+act.format+' · '+fieldCount+'개 필드 · '+rc+'건 레코드'+(act.hasValues?' (값 포함)':' (값 없음 → 타입/NULL 검사 생략)');
+  // build per-record maps
+  const actMaps=act.records.map(rec=>{const m=new Map();rec.forEach(f=>m.set(f.field,f));return m;});
+  const leafMaps=act.records.map(rec=>{const m=new Map();rec.forEach(f=>{const lf=leaf(f.field);if(!m.has(lf))m.set(lf,f);});return m;});
+  // collect all actual field names across records
+  const allActFields=new Set();act.records.forEach(rec=>rec.forEach(f=>allActFields.add(f.field)));
+  const matched=new Set();const results=[];
+  exp.forEach(e=>{if(excl&&normType(e.type)==='struct')return;
+    // check first record for existence
+    let found=false;for(let ri=0;ri<actMaps.length;ri++){if(actMaps[ri].has(e.field)||(loose&&leafMaps[ri].has(leaf(e.field)))){found=true;break;}}
+    if(!found){const vals=new Array(Math.max(rc,1)).fill('');results.push({field:e.field,status:'누락',cls:'miss',expType:e.type,actType:'',values:vals});return;}
+    matched.add(e.field);
+    const vals=[],types=[];const issues=[];
+    for(let ri=0;ri<rc;ri++){
+      let a=actMaps[ri].get(e.field);if(!a&&loose)a=leafMaps[ri].get(leaf(e.field));
+      if(!a){vals.push('');types.push('');continue;}
+      if(loose&&a.field!==e.field)matched.add(a.field);else matched.add(a.field);
+      vals.push(fmtVal(a.value));types.push(a.type||'');
+      if(ckType&&act.hasValues){const c=typeCompatible(e.type,a.type);if(c===false&&!issues.includes('타입불일치'))issues.push('타입불일치');}
+      if(ckNull&&act.hasValues&&a.isNull&&!issues.includes('NULL값'))issues.push('NULL값');
+    }
+    let status='일치',cls='ok';if(issues.length){status=issues.join(' + ');cls=issues.includes('타입불일치')?'type':'null';}
+    results.push({field:e.field,status,cls,expType:e.type,actType:types[0]||'',values:vals});
+  });
+  allActFields.forEach(fname=>{if(!matched.has(fname)){
+    const vals=[],types=[];
+    for(let ri=0;ri<rc;ri++){const a=actMaps[ri].get(fname);vals.push(a?fmtVal(a.value):'');types.push(a?(a.type||''):'');}
+    results.push({field:fname,status:'추가(명세 외)',cls:'extra',expType:'',actType:types[0]||'',values:vals});
+  }});
+  lastResults=results;render();}
+function fmtVal(v){if(v===undefined)return '';if(v===null)return 'null';if(typeof v==='object')return JSON.stringify(v);return String(v);}
+function render(){const r=lastResults;const c={ok:0,miss:0,extra:0,type:0,null:0};r.forEach(x=>{if(c[x.cls]!==undefined)c[x.cls]++;});
+  const cards=$('#cards');cards.style.display='flex';
+  cards.innerHTML='<div class="card"><div class="n">'+r.length+'</div><div class="l">총 검사</div></div>'+
+    '<div class="card ok"><div class="n">'+c.ok+'</div><div class="l">일치</div></div>'+
+    '<div class="card miss"><div class="n">'+c.miss+'</div><div class="l">누락</div></div>'+
+    '<div class="card extra"><div class="n">'+c.extra+'</div><div class="l">추가(명세 외)</div></div>'+
+    '<div class="card type"><div class="n">'+c.type+'</div><div class="l">타입불일치</div></div>'+
+    '<div class="card null_"><div class="n">'+c.null+'</div><div class="l">NULL값</div></div>';
+  const v=$('#verdict');const problems=c.miss+c.extra+c.type+c.null;
+  if(r.length===0){v.style.display='none';}else if(problems===0){v.style.display='block';v.className='verdict pass';v.textContent='✅ 통과 — 명세와 실제 로그가 모두 일치합니다.';}else{v.style.display='block';v.className='verdict fail';v.textContent='⚠️ 이슈 '+problems+'건 — 누락 '+c.miss+' · 추가 '+c.extra+' · 타입불일치 '+c.type+' · NULL '+c.null;}
+  const fdefs=[['all','전체',r.length],['miss','누락',c.miss],['extra','추가',c.extra],['type','타입불일치',c.type],['null','NULL',c.null],['ok','일치',c.ok]];
+  const fl=$('#filters');fl.style.display='flex';fl.innerHTML=fdefs.map(f=>'<button data-f="'+f[0]+'" class="'+(curFilter===f[0]?'active':'')+'">'+f[1]+' ('+f[2]+')</button>').join('');
+  fl.querySelectorAll('button').forEach(b=>b.onclick=()=>{curFilter=b.dataset.f;render();});
+  const rc=lastRecordCount;const valCols=Math.max(rc,1);const totalCols=5+valCols+2;
+  // build dynamic header
+  let headHtml='<tr><th data-k="field">필드명</th><th data-k="status">상태</th><th data-k="expType">명세 타입</th><th data-k="actType">실제 타입</th>';
+  for(let i=0;i<valCols;i++)headHtml+='<th data-k="value'+i+'">'+(valCols>1?'실제 값'+(i+1):'실제 값')+'</th>';
+  headHtml+='<th style="width:90px;">판정</th><th style="width:220px;">코멘트</th></tr>';
+  $('#resultHead').innerHTML=headHtml;
+  document.querySelectorAll('#resultHead th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=1;}render();});
+  let rows=curFilter==='all'?r.slice():r.filter(x=>x.cls===curFilter);if(sortKey)rows.sort((a,b)=>(((a[sortKey]||'')+'').localeCompare((b[sortKey]||'')+'','ko'))*sortDir);
+  const tb=$('#rows');$('#resultTable').style.display='table';
+  if(rows.length===0){tb.innerHTML='<tr><td colspan="'+totalCols+'" class="empty">해당 항목 없음</td></tr>';return;}
+  const lg=logs.find(l=>l.id===currentId);const rm=(lg&&lg.rowMeta)||{};
+  const badge={ok:'b-ok',miss:'b-miss',extra:'b-extra',type:'b-type',null:'b-null'};const rcls={miss:'r-miss',extra:'r-extra',type:'r-type',null:'r-null',ok:''};
+  const opt=(v,sel)=>'<option value="'+v+'"'+(sel===v?' selected':'')+'>'+(v===''?'미정':VLABEL[v]||v)+'</option>';
+  tb.innerHTML=rows.map(x=>{const meta=rm[x.field]||{};const pf=meta.pf||'';const cmt=meta.cmt||'';
+    let valTds='';for(let i=0;i<valCols;i++)valTds+='<td class="val">'+esc((x.values&&x.values[i])||'')+'</td>';
+    return '<tr class="'+(rcls[x.cls]||'')+'"><td class="field">'+esc(x.field)+'</td><td><span class="badge '+badge[x.cls]+'">'+esc(x.status)+'</span></td><td>'+esc(x.expType)+'</td><td>'+esc(x.actType)+'</td>'+valTds+
+    '<td><select class="pf" data-v="'+pf+'" data-field="'+esc(x.field)+'">'+opt('',pf)+opt('pass',pf)+opt('fail',pf)+opt('na',pf)+opt('block',pf)+'</select></td>'+
+    '<td><input class="cmt" data-field="'+esc(x.field)+'" value="'+esc(cmt)+'" placeholder="코멘트"></td></tr>';}).join('');
+  tb.querySelectorAll('select.pf').forEach(s=>s.onchange=()=>{s.dataset.v=s.value;setRowMeta(s.dataset.field,'pf',s.value);});
+  tb.querySelectorAll('input.cmt').forEach(i=>i.oninput=()=>setRowMeta(i.dataset.field,'cmt',i.value));}
+function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+
+$('#clearActual').onclick=()=>{if(!actTa.value.trim()||confirm('데이터브릭스 로그를 지울까요?')){actTa.value='';save();$('#actMeta').textContent='';}};
+$('#saveToMemo').onclick=()=>{const v=actTa.value.trim();if(!v){alert('저장할 로그가 없습니다.');return;}const memo=$('#actualMemo');const ts=new Date().toLocaleString('ko');const sep=memo.value.trim()?'\n\n':'';memo.value+=sep+'── '+ts+' ──\n'+v;save();$('#memoSection').open=true;};
+$('#actualMemo').addEventListener('input',save);
+$('#run').onclick=compare;
+function flashCopy(){const b=$('#copy');const o=b.textContent;b.textContent='복사됨 ✓';setTimeout(()=>b.textContent=o,1200);}
+function legacyCopy(text){try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');document.body.removeChild(ta);return ok;}catch(e){return false;}}
+function showCopyModal(text){$('#copyText').value=text;$('#copyModal').classList.add('open');const ta=$('#copyText');ta.focus();ta.select();}
+$('#copyClose').onclick=()=>$('#copyModal').classList.remove('open');
+$('#copyModal').addEventListener('click',e=>{if(e.target.id==='copyModal')$('#copyModal').classList.remove('open');});
+$('#copy').onclick=()=>{if(!lastResults.length){alert('먼저 검수를 실행하세요.');return;}const lg=logs.find(l=>l.id===currentId);const rm=(lg&&lg.rowMeta)||{};const rc=lastRecordCount;const vc=Math.max(rc,1);
+const head='로그: '+((lg&&lg.name)||'')+'\t판정: '+(VLABEL[(lg&&lg.verdict)||'']||'미검수')+'\n';
+let h='필드명\t상태\t명세타입\t실제타입';for(let i=0;i<vc;i++)h+='\t'+(vc>1?'실제값'+(i+1):'실제값');h+='\t판정\t코멘트';
+const body=lastResults.map(x=>{const m=rm[x.field]||{};const pf=VLABEL[m.pf]||'';let vals='';for(let i=0;i<vc;i++)vals+='\t'+((x.values&&x.values[i])||'');return x.field+'\t'+x.status+'\t'+x.expType+'\t'+x.actType+vals+'\t'+pf+'\t'+(m.cmt||'').replace(/\t/g,' ');}).join('\n');const text=head+h+'\n'+body;
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(flashCopy).catch(()=>{if(legacyCopy(text))flashCopy();else showCopyModal(text);});}
+  else{if(legacyCopy(text))flashCopy();else showCopyModal(text);}};
+actTa.addEventListener('input',save);
+['optStruct','optType','optNull','optLoose'].forEach(id=>$('#'+id).addEventListener('change',persistOnly));
+
+// ---------- 공용 동기화 (Google Sheet / Apps Script) ----------
+let syncUrl=localStorage.getItem('palm_sync_url')||'';
+let syncUser=localStorage.getItem('palm_sync_user')||'';
+let pushTimer=null,pollTimer=null;
+$('#syncUrl').value=syncUrl;$('#syncUser').value=syncUser;
+function setStatus(cls,txt){const el=$('#syncStatus');el.className='sync-status '+cls;el.textContent=txt;}
+function nowt(){const d=new Date();return d.toTimeString().slice(0,8);}
+async function apiGet(){const r=await fetch(syncUrl+(syncUrl.includes('?')?'&':'?')+'action=list',{method:'GET'});return await r.json();}
+async function apiPost(payload){const r=await fetch(syncUrl,{method:'POST',body:JSON.stringify(payload)});return await r.json();}
+function scheduledPush(){if(!syncUrl||currentId==null)return;clearTimeout(pushTimer);pushTimer=setTimeout(()=>{const lg=logs.find(l=>l.id===currentId);if(lg){lg.updatedBy=syncUser||'';pushLog(lg);}},800);}
+async function pushLog(lg){if(!syncUrl)return;try{lg.updatedBy=syncUser||'';await apiPost({action:'upsert',log:lg});setStatus('ok','동기화됨 '+nowt());}catch(e){setStatus('err','동기화 실패 (로컬 저장됨)');}}
+async function pushDelete(id){if(!syncUrl)return;try{await apiPost({action:'delete',id:id});setStatus('ok','동기화됨 '+nowt());}catch(e){setStatus('err','동기화 실패');}}
+function mergeRemote(remote,reloadCurrent){
+  const map=new Map(remote.map(l=>[String(l.id),l]));
+  // keep currently-edited log local unless caller asks to reload it
+  const keepId=(!reloadCurrent&&currentId!=null)?String(currentId):null;
+  const curLocal=keepId?logs.find(l=>String(l.id)===keepId):null;
+  logs=remote.map(l=>({id:String(l.id),name:l.name,cat:l.cat||'new',verdict:l.verdict||'',assignee:l.assignee||'',spec:l.spec||[],actual:l.actual||'',memo:l.memo||'',rowMeta:l.rowMeta||{},updatedBy:l.updatedBy,updatedAt:l.updatedAt}));
+  if(curLocal&&!map.has(keepId))logs.push(curLocal); // local-only (not yet pushed) survives
+  else if(curLocal&&map.has(keepId)){const idx=logs.findIndex(l=>String(l.id)===keepId);if(idx>=0)logs[idx]=curLocal;}
+  if(currentId!=null&&!logs.some(l=>String(l.id)===String(currentId))){currentId=logs[0]?logs[0].id:null;}
+  renderLogList();
+  if(reloadCurrent&&currentId!=null)loadIntoEditor();
+  if(currentId==null)showWork(false);
+}
+async function pullAll(reloadCurrent){if(!syncUrl)return;try{const d=await apiGet();if(d&&d.ok){mergeRemote(d.logs||[],reloadCurrent);setStatus('ok','동기화됨 '+nowt());}else{setStatus('err','응답 오류');}}catch(e){setStatus('err','연결 실패 (브라우저에서 열었는지 확인)');}}
+async function connect(){
+  syncUrl=$('#syncUrl').value.trim();syncUser=$('#syncUser').value.trim();
+  localStorage.setItem('palm_sync_url',syncUrl);localStorage.setItem('palm_sync_user',syncUser);
+  if(!syncUrl){setStatus('local','미연동 (로컬 저장)');stopPoll();return;}
+  setStatus('local','연결 중…');
+  try{const d=await apiGet();if(!d||!d.ok){setStatus('err','응답 오류 — URL 확인');return;}
+    const remote=d.logs||[];
+    if(remote.length===0&&logs.length>0){
+      if(confirm('서버가 비어 있습니다. 지금 로컬에 있는 로그 '+logs.length+'개를 공용 저장소로 올릴까요?')){
+        logs.forEach(l=>l.id=String(l.id));await apiPost({action:'replaceAll',logs:logs});setStatus('ok','업로드 완료 '+nowt());}
+      else {setStatus('ok','연결됨 '+nowt());}
+    } else { mergeRemote(remote,true); setStatus('ok','연결됨 '+nowt()); }
+    startPoll();
+  }catch(e){setStatus('err','연결 실패 — 브라우저에서 열었는지/URL 확인');}
+}
+function startPoll(){stopPoll();if(!syncUrl)return;pollTimer=setInterval(()=>{if(document.hidden)return;pullAll(false);},15000);}
+function stopPoll(){if(pollTimer){clearInterval(pollTimer);pollTimer=null;}}
+$('#connectBtn').onclick=connect;
+$('#refreshBtn').onclick=()=>pullAll(true);
+
+let resizeT=null;window.addEventListener('resize',()=>{clearTimeout(resizeT);resizeT=setTimeout(growAll,150);});
+load();
+if(syncUrl){setStatus('local','연결 중…');connect();}
+</script>
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
