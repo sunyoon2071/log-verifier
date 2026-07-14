@@ -119,7 +119,7 @@ tr.r-miss{background:#fef2f2;} tr.r-extra{background:#fffbeb;} tr.r-type{backgro
 
   <div class="bar syncbar">
     <strong style="font-size:13px;">공용 연동</strong>
-    <input id="syncUrl" type="text" placeholder="Apps Script 웹앱 URL 붙여넣기" style="flex:1;min-width:240px;">
+    <input id="syncUrl" type="text" placeholder="Apps Script 웹앱 URL 붙여넣기" style="flex:1;min-width:240px;" value="https://script.google.com/macros/s/AKfycbyeUhrV0UxQWMeLCBZkP-yeLkdpxQ22z--3q2n0SLy18hH0KT3M8XfnvvUweFKKcnj70g/exec">
     <input id="syncUser" type="text" placeholder="내 이름" style="width:110px;">
     <button class="btn-mini" id="connectBtn">연결</button>
     <button class="btn-mini" id="refreshBtn">↻ 새로고침</button>
@@ -453,7 +453,8 @@ actTa.addEventListener('input',save);
 ['optStruct','optType','optNull','optLoose'].forEach(id=>$('#'+id).addEventListener('change',persistOnly));
 
 // ---------- 공용 동기화 (Google Sheet / Apps Script) ----------
-let syncUrl=localStorage.getItem('palm_sync_url')||'';
+const _DEFAULT_SYNC_URL='https://script.google.com/macros/s/AKfycbyeUhrV0UxQWMeLCBZkP-yeLkdpxQ22z--3q2n0SLy18hH0KT3M8XfnvvUweFKKcnj70g/exec';
+let syncUrl=localStorage.getItem('palm_sync_url')||_DEFAULT_SYNC_URL;
 let syncUser=localStorage.getItem('palm_sync_user')||'';
 let pushTimer=null,pollTimer=null;
 $('#syncUrl').value=syncUrl;$('#syncUser').value=syncUser;
